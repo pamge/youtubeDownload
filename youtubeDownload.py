@@ -36,8 +36,8 @@ YDL_OPTS = {
 
 def download_song(song):
 	try:
-		# check wav is existed
-		if os.path.isfile('%d.wav' % song['id']):
+		# check mp3 is existed
+		if os.path.isfile('%d.mp3' % song['id']):
 			print('[PASSED] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
 			return True
 		# search song in youtube
