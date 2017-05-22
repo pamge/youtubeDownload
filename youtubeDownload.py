@@ -3,12 +3,11 @@ import os
 import re
 import sys
 import csv
-from datetime import datetime
 import youtube_dl
 from urllib import request
 from itertools import islice
-
-YOUTUBE_HOST = 'https://www.youtube.com'
+from datetime import datetime
+from urllib.parse import urlencode
 
 class Logger(object):
 	def debug(self, msg):
@@ -19,6 +18,10 @@ class Logger(object):
 
 	def error(self, msg):
 		pass
+
+YOUTUBE_HOST = 'https://www.youtube.com'
+
+REGEX_PATTERN = '<h3 class="yt-lockup-title "><a href="\/watch\?v=([^"&]+)[^>]+>([^<]+)'
 
 YDL_OPTS = {
 	'age_limit': 87,
@@ -43,23 +46,36 @@ def download_song(path, song):
 		# search song in youtube
 		name = song['name'].replace(' ', '+')
 		artist = song['artist'].replace(' ', '+')
-		youtube_search_url = YOUTUBE_HOST + '/results?search_query=%s+%s' % (name, artist)
+		youtube_search_url = YOUTUBE_HOST + '/results?' + urlencode({'search_query': '%s+%s' % (name, artist)})
 		youtube_search_content = request.urlopen(youtube_search_url).read().decode('utf-8')
-		match_youtube_ids = re.findall('watch\?v=([^"]+)', youtube_search_content)
-		if len(match_youtube_ids) <= 0:
-			print('[SEAECH FAILED] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
-			return False
-		# download 
-		YDL_OPTS['outtmpl'] = path + str(song['id']) + '.%(ext)s'
-		with youtube_dl.YoutubeDL(YDL_OPTS) as ydl:
-			ydl.download([YOUTUBE_HOST + '/watch?v=%s' % match_youtube_ids[0]])
-			print('[DOWNLOADED] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
-			return True
+		match_youtube_infos = re.findall(REGEX_PATTERN, youtube_search_content)
+		# download
+		YDL_OPTS['outtmpl'] = str(song['id']) + '.%(ext)s'
+		for match_youtube_info in match_youtube_infos[0 : 5]:
+			try:
+				if match_youtube_info[1].find(song['name']) == -1:
+					continue
+				if match_youtube_info[1].find(song['artist']) == -1:
+					continue
+				with youtube_dl.YoutubeDL(YDL_OPTS) as ydl:
+					ydl.download([YOUTUBE_HOST + '/watch?v=%s' % match_youtube_info[0]])
+					print('[DOWNLOADED] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
+					return True
+			except KeyboardInterrupt:
+				if os.path.isfile(path + '%d.mp3' % song['id']):
+					os.remove(path + '%d.mp3' % song['id'])
+				exit(0)
+			except:
+				print('[UNKNOWN FAILED IN FOR] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
+				print('%s %s' % (sys.exc_info()[0], sys.exc_info()[1]))
+				pass
 		print('[UNKNOWN FAILED] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
 		return False
 	except KeyboardInterrupt:
 		if os.path.isfile(path + '%d.mp3' % song['id']):
 			os.remove(path + '%d.mp3' % song['id'])
+		exit(0)
+	except SystemExit:
 		exit(0)
 	except:
 		print('[UNKNOWN FAILED] id: %d, name: %s, artist: %s' % (song['id'], song['name'], song['artist']))
